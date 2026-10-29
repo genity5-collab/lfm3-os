@@ -49,7 +49,10 @@ export class CloudEngine {
     this.provider = s.cloudProvider || 'puter';
     const preset = CLOUD_PROVIDERS[this.provider] || CLOUD_PROVIDERS.puter;
     this.model = s.cloudModel || preset.defaultModel;
-    this.base = (s.cloudBaseUrl || preset.base || '').replace(/\/+$/, '');
+    // A preset provider always talks to its own endpoint, so a leftover custom URL
+    // from another provider can never hijack the request.
+    this.base = (this.provider === 'custom' ? s.cloudBaseUrl || '' : preset.base || s.cloudBaseUrl || '')
+      .replace(/\/+$/, '');
     this.key = s.cloudKey || '';
     this.config = {
       label: `${preset.short} · ${this.model}`,

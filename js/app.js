@@ -564,7 +564,9 @@ function syncSettings() {
   $('#setEngineMode').value = settings.engineMode || 'local';
   $('#setCloudProvider').value = settings.cloudProvider || 'puter';
   $('#setCloudModel').value = settings.cloudModel || '';
-  $('#setCloudBase').value = settings.cloudBaseUrl || '';
+  const preset = CLOUD_PROVIDERS[settings.cloudProvider] || CLOUD_PROVIDERS.puter;
+  $('#setCloudBase').value = settings.cloudProvider === 'custom' ? settings.cloudBaseUrl || '' : preset.base || '';
+  $('#setCloudBase').placeholder = settings.cloudProvider === 'custom' ? 'https://<worker>.workers.dev/v1' : preset.base || 'only for a custom proxy';
   $('#setCloudKey').value = settings.cloudKey || '';
   $('#permNotesRead').checked = !!settings.perms.notesRead;
   $('#permNotesWrite').checked = !!settings.perms.notesWrite;
