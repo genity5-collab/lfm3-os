@@ -1,6 +1,6 @@
 // Tool implementations. Everything runs locally except web_search / web_read,
 // which call public read endpoints from the browser.
-import { addNote, listNotes, deleteNote } from './store.js';
+import { addNote, listNotes } from './store.js';
 
 const enc = encodeURIComponent;
 
@@ -212,6 +212,42 @@ export function openApp(app, target) {
   return { label: entry.label, url: entry.build(target || ''), app: key };
 }
 
+/* ── contacts: text and call ─────────────────────────────── */
+
+const digitsOf = (to) => String(to || '').replace(/[^\d+]/g, '');
+
+export function messageContact(to, text, via) {
+  const digits = digitsOf(to);
+  const body = String(text || '').slice(0, 900);
+  const channel = String(via || 'whatsapp').toLowerCase() === 'sms' ? 'sms' : 'whatsapp';
+
+  if (channel === 'sms') {
+    return {
+      label: 'Messages',
+      channel,
+      url: `sms:${digits}?&body=${enc(body)}`,
+      note: digits ? undefined : 'No number given, so the user picks the contact.',
+    };
+  }
+  return {
+    label: 'WhatsApp',
+    channel,
+    url: digits.length > 6 ? `https://wa.me/${digits.replace(/\D/g, '')}?text=${enc(body)}` : `https://wa.me/?text=${enc(body)}`,
+    note: digits.length > 6 ? undefined : 'No number given, so the user picks the contact.',
+  };
+}
+
+export function callContact(to) {
+  const digits = digitsOf(to);
+  if (!digits || digits.replace(/\D/g, '').length < 4) {
+    return {
+      error:
+        'no usable phone number. Browsers cannot read the user\'s contacts, so ask for the number first.',
+    };
+  }
+  return { label: 'Call ' + digits, url: `tel:${digits}` };
+}
+
 /* ── time ────────────────────────────────────────────────── */
 
 export function getTime() {
@@ -231,14 +267,34 @@ export const TOOL_META = {
   web_search: { label: 'Web search', icon: 'search' },
   web_read: { label: 'Read page', icon: 'book' },
   note_save: { label: 'Save note', icon: 'note' },
-  note_list: { label: 'Find notes', icon: 'note' },
-  note_delete: { label: 'Delete note', icon: 'note' },
+  note_list: { label: 'Read notes', icon: 'note' },
+  message_contact: { label: 'Text contact', icon: 'phone' },
+  call_contact: { label: 'Call contact', icon: 'phone' },
   code_run: { label: 'Run code', icon: 'code' },
   open_app: { label: 'Open app', icon: 'phone' },
   get_time: { label: 'Clock', icon: 'clock' },
 };
 
+const PERMISSION_FOR = {
+  note_save: ['notesWrite', 'writing notes'],
+  note_list: ['notesRead', 'reading notes'],
+  open_app: ['appsOpen', 'opening apps'],
+  message_contact: ['messages', 'sending messages'],
+  call_contact: ['calls', 'calling'],
+};
+
+const DENY_NOTE =
+  'permission denied. Tell the user to enable this in Settings, under Permissions. Do not retry.';
+
 export async function callTool(name, args = {}, settings = {}) {
+  const gate = PERMISSION_FOR[name];
+  if (gate) {
+    const perms = settings.perms || {};
+    if (!perms[gate[0]]) {
+      return { text: `error: ${gate[1]} is not allowed on this device. ${DENY_NOTE}`, denied: true };
+    }
+  }
+
   switch (name) {
     case 'web_search': {
       if (!args.query) return { text: 'error: query is required' };
@@ -277,12 +333,6 @@ export async function callTool(name, args = {}, settings = {}) {
       };
     }
 
-    case 'note_delete': {
-      if (!args.id) return { text: 'error: id is required' };
-      deleteNote(args.id);
-      return { text: `deleted ${args.id}`, event: 'notes' };
-    }
-
     case 'code_run': {
       if (!args.code) return { text: 'error: code is required' };
       const out = await runCode(args.code);
@@ -298,6 +348,25 @@ export async function callTool(name, args = {}, settings = {}) {
       if (res.error) return { text: res.error };
       return {
         text: `ready: ${res.label} link built (${res.url}). The user must tap it to launch the app.`,
+        data: res,
+        launch: res,
+      };
+    }
+
+    case 'message_contact': {
+      const res = messageContact(args.to, args.text, args.via);
+      return {
+        text: `ready: a ${res.label} message is written${res.note ? ' (' + res.note + ')' : ''}. The user must tap the link to send it. Nothing is sent automatically.`,
+        data: res,
+        launch: res,
+      };
+    }
+
+    case 'call_contact': {
+      const res = callContact(args.to);
+      if (res.error) return { text: 'error: ' + res.error };
+      return {
+        text: `ready: call link for ${res.label}. The user must tap it to dial; web pages cannot place or answer calls by themselves.`,
         data: res,
         launch: res,
       };

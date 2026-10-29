@@ -17,11 +17,13 @@ No server does the thinking. No API key is required. The page is a static GitHub
 | Capability | How it works | Honest status |
 |---|---|---|
 | **Talks to LFM3 locally** | ONNX weights stream from Hugging Face once, then run on your GPU through WebGPU | Works. ~1.1 GB download for 4-bit, ~3.6 GB for fp16 |
-| **Notes** | The agent is instructed by the system prompt to save durable facts; notes live in `localStorage` with search, manual add/delete and JSON export | Works, agent-triggered and manual |
+| **Notes** | Write and read only. The system prompt makes it save durable facts; notes live in `localStorage` with search and JSON export. **Deleting is a human action** — the agent has no delete tool at all | Works, agent read/write, you delete |
 | **Web search** | DuckDuckGo Lite and Wikipedia fetched through a text reader proxy, so the search happens in the cloud and your phone only renders results | Works with no key; sharper with a Tavily key or your own worker |
 | **Web read** | Any URL fetched as clean markdown text and trimmed to ~5k chars | Works on most pages; paywalled or JS-only pages come back thin |
 | **Code** | JavaScript runs in a Web Worker with `fetch`, `WebSocket`, `indexedDB` and `importScripts` removed, 4s timeout, output piped back to the model | Works for maths, parsing, generated tables. Not a filesystem |
 | **Open apps on your phone** | Deep links (`tel:`, `sms:`, `mailto:`, YouTube, Maps, WhatsApp, Spotify, Calendar). Browsers refuse scripted launches, so the agent hands you a real button | Works when the app is installed. Nothing on desktop |
+| **Text a contact** | `message_contact` drafts the message and builds a `wa.me` or `sms:` link | Works through your tap; gated by the Messages permission |
+| **Call a contact** | `call_contact` builds a `tel:` link once a number is known | Dial only, through your tap. Gated by the Calls permission |
 | **Works offline (after first load)** | Service worker caches the shell; Transformers.js caches weights in the browser cache | Works for app + model after the first successful load |
 
 "Live stuff" means the loop is real: token streaming, tool cards that report actual results,
@@ -80,6 +82,29 @@ If every tier fails the agent is told the search failed, and it says so instead 
 
 ---
 
+## Permissions
+
+The agent can only do what you allow, and the check lives in the tool layer — not just in the prompt.
+
+| Switch | Default | What it unlocks |
+|---|---|---|
+| Read notes | on | `note_list` |
+| Write notes | on | `note_save` |
+| Open apps | on | `open_app` |
+| Text contacts | on | `message_contact` (WhatsApp / SMS link) |
+| Call contacts | **off** | `call_contact` (dial link) |
+
+When a tool is blocked the model receives `permission denied` and is told to point you at
+Settings → Permissions instead of retrying. There is **no delete capability anywhere**: not
+disabled, absent.
+
+### What a browser genuinely cannot do
+
+A static page cannot answer an incoming call, read your contacts, or send a message on its own.
+So this build does the honest version of each: it drafts the text and hands you a link, and the
+Calls switch unlocks dialling. Auto-answering calls needs a native app with call permissions
+(iOS CallKit / Android Telecom) — that is a different product, not a GitHub Pages site.
+
 ## Privacy
 
 - Weights, chats, notes and settings stay in this browser. There is no backend in this repo.
@@ -96,6 +121,7 @@ If every tier fails the agent is told the search failed, and it says so instead 
   chains. Raise the step budget and it will still sometimes circle.
 - No background execution: close the tab and the agent stops. There is no scheduler.
 - Deep links and downloads cannot be triggered by script. The agent prepares the link, you tap it.
+- No contact reading, no auto-send, no auto-answer. Permission switches gate intent, not OS powers.
 - Vision (LFM3-VL 2B), audio (LFM3-Audio) and omni builds exist and run on the same runtime, but
   they are **not wired into this UI yet** — they are on the roadmap below, not in the product.
 - WASM fallback works but is slow enough to be impractical; WebGPU is the real path.
@@ -110,7 +136,7 @@ css/style.css         theme and layout
 js/config.js          model registry, system prompt, defaults
 js/model.js           Transformers.js engine: load, stream, stop
 js/agent.js           the loop, JSON extraction, note guard
-js/tools.js           search, read, notes, code sandbox, deep links, clock
+js/tools.js           search, read, notes, code sandbox, deep links, messaging, clock
 js/store.js           sessions, settings, notes persistence
 js/app.js             UI controller
 sw.js                 offline shell

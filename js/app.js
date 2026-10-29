@@ -511,6 +511,11 @@ function closeSidebar() {
 
 /* ── settings binding ───────────────────────────────────── */
 function syncSettings() {
+  $('#permNotesRead').checked = !!settings.perms.notesRead;
+  $('#permNotesWrite').checked = !!settings.perms.notesWrite;
+  $('#permAppsOpen').checked = !!settings.perms.appsOpen;
+  $('#permMessages').checked = !!settings.perms.messages;
+  $('#permCalls').checked = !!settings.perms.calls;
   $('#setTemp').value = settings.temperature;
   $('#setTempVal').textContent = settings.temperature.toFixed(2);
   $('#setMaxTok').value = settings.maxTokens;
@@ -524,6 +529,20 @@ function syncSettings() {
 }
 
 function bindSettings() {
+  const permBoxes = {
+    permNotesRead: 'notesRead',
+    permNotesWrite: 'notesWrite',
+    permAppsOpen: 'appsOpen',
+    permMessages: 'messages',
+    permCalls: 'calls',
+  };
+  Object.entries(permBoxes).forEach(([id, key]) => {
+    $('#' + id).addEventListener('change', (e) => {
+      settings = store.saveSettings({ perms: { ...settings.perms, [key]: e.target.checked } });
+      toast(`${key} ${e.target.checked ? 'allowed' : 'blocked'}`);
+    });
+  });
+
   $('#setTemp').addEventListener('input', (e) => {
     settings = store.saveSettings({ temperature: parseFloat(e.target.value) });
     $('#setTempVal').textContent = settings.temperature.toFixed(2);
