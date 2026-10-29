@@ -1,6 +1,6 @@
 // Offline shell. Only same-origin app files are cached — model weights live in
 // the browser cache managed by Transformers.js, not here.
-const CACHE = 'lfm3os-shell-v1';
+const CACHE = 'lfm3os-shell-v2';
 const SHELL = [
   './',
   './index.html',

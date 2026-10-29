@@ -8,6 +8,9 @@ import { CLOUD_PROVIDERS } from './config.js';
 
 let puterLoading = null;
 
+// A hung provider request must fail loudly instead of spinning forever.
+const CLOUD_TIMEOUT = 60000;
+
 function loadPuter() {
   if (window.puter?.ai?.chat) return Promise.resolve();
   if (!puterLoading) {
@@ -76,8 +79,27 @@ export class CloudEngine {
     const msgs = messages.map((m) => ({ role: m.role, content: String(m.content) }));
     // Reasoning models spend tokens thinking, so never cap cloud calls too low.
     const cap = Math.max(900, Number(maxTokens) || 0);
-    if (this.provider === 'puter') return this.viaPuter(msgs, onToken, temperature, cap);
-    return this.viaOpenAI(msgs, onToken, temperature, cap);
+    const call =
+      this.provider === 'puter'
+        ? this.viaPuter(msgs, onToken, temperature, cap)
+        : this.viaOpenAI(msgs, onToken, temperature, cap);
+
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        this.stop();
+        reject(
+          new Error(
+            `no reply after ${CLOUD_TIMEOUT / 1000}s. A hosted model can be slow, Puter may be waiting for you to sign in, or the key/model is wrong.`
+          )
+        );
+      }, CLOUD_TIMEOUT);
+    });
+    try {
+      return await Promise.race([call, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async viaPuter(msgs, onToken, temperature, maxTokens) {
