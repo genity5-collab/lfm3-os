@@ -2,12 +2,14 @@
 import { MODELS, STORAGE } from './config.js';
 import { Engine, describeDevice } from './model.js';
 import { Agent } from './agent.js';
+import { DemoEngine } from './demo.js';
 import * as store from './store.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-const engine = new Engine();
+const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+const engine = DEMO ? new DemoEngine() : new Engine();
 let settings = store.getSettings();
 let sessions = store.getSessions();
 let activeId = store.getActiveId();
@@ -251,8 +253,16 @@ function paintEngine(state) {
   const sub = $('#modelState');
   dot.className = 'dot' + (state === 'ready' ? ' on' : state === 'busy' ? ' busy' : '');
   name.textContent = engine.config?.label || MODELS.find((m) => m.id === settings.modelId)?.label || 'no model';
-  sub.textContent = state === 'ready' ? 'ready' : state === 'busy' ? 'generating' : 'not loaded';
-  $('#footInfo').textContent = engine.ready
+  sub.textContent = DEMO
+    ? 'demo loop'
+    : state === 'ready'
+    ? 'ready'
+    : state === 'busy'
+    ? 'generating'
+    : 'not loaded';
+  $('#footInfo').textContent = DEMO
+    ? 'Demo loop · scripted model output, real tools'
+    : engine.ready
     ? `${engine.config.label} · local${navigator.gpu ? ' · WebGPU' : ' · WASM'}`
     : 'Local inference · model not loaded';
   $('#emptyNote').textContent = engine.ready
@@ -345,7 +355,7 @@ async function send(text) {
   text = (text || '').trim();
   if (!text || running) return;
 
-  if (!engine.ready) {
+  if (!engine.ready && !DEMO) {
     pendingPrompt = text;
     openLoader();
     toast('Load the model first. It downloads once, then runs offline.');

@@ -14,6 +14,23 @@ export function describeDevice() {
   return lines.join('\n');
 }
 
+/** Ask for a real WebGPU adapter; a browser can expose navigator.gpu without one. */
+export async function probeDevice() {
+  if (!navigator.gpu) return { webgpu: false, reason: 'no WebGPU in this browser' };
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) return { webgpu: false, reason: 'no GPU adapter available' };
+    const info = adapter.info || {};
+    return {
+      webgpu: true,
+      reason: 'webgpu adapter',
+      detail: [info.vendor, info.architecture, info.description].filter(Boolean).join(' '),
+    };
+  } catch (e) {
+    return { webgpu: false, reason: 'adapter failed: ' + (e.message || e) };
+  }
+}
+
 export class Engine {
   constructor() {
     this.lib = null;
@@ -61,9 +78,13 @@ export class Engine {
     lib.env.useBrowserCache = true;
     lib.env.logLevel = 'error';
 
-    const webgpu = !!navigator.gpu;
+    onPhase('testing GPU');
+    const probe = await probeDevice();
+    const webgpu = probe.webgpu;
     const device = webgpu ? 'webgpu' : 'wasm';
-    const dtype = webgpu ? config.dtype : config.dtype === 'fp16' ? 'q4' : config.dtype;
+    // WASM cannot run fp16/fp16 kernels well: drop to q4 there.
+    const dtype = webgpu ? config.dtype : 'q4';
+    if (!webgpu) onPhase('no GPU adapter - falling back to WASM (slow)');
 
     const files = new Map();
     const progress_callback = (p) => {
@@ -89,11 +110,18 @@ export class Engine {
     };
 
     onPhase(webgpu ? 'starting WebGPU' : 'starting WASM (slow)');
-    const pipe = await lib.pipeline(config.task, config.hf, {
-      device,
-      dtype,
-      progress_callback,
-    });
+    let pipe;
+    try {
+      pipe = await lib.pipeline(config.task, config.hf, { device, dtype, progress_callback });
+    } catch (e) {
+      if (!webgpu) throw e;
+      onPhase('WebGPU failed (' + (e.message || e) + ') - retrying on WASM');
+      pipe = await lib.pipeline(config.task, config.hf, {
+        device: 'wasm',
+        dtype: 'q4',
+        progress_callback,
+      });
+    }
 
     this.pipe = pipe;
     this.config = config;
