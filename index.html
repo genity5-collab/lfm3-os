@@ -154,7 +154,7 @@
             <span>API key</span>
             <input id="setCloudKey" type="password" spellcheck="false" placeholder="not needed for Puter" />
           </label>
-          <p class="hint">Cloud mode sends the conversation to that provider instead of this device. Your key is kept in this browser only. Puter needs no key and no backend of your own; a Cloudflare Worker (<code>cloud/ai-worker.js</code>) keeps one key server-side for everyone.</p>
+          <p class="hint">Cloud mode sends the conversation to that provider instead of this device. Your key is kept in this browser only. Puter needs no key and no backend, though it may ask you to sign in to Puter the first time. For a shared public link use your own Worker, so one key stays server-side: <code>cloud/ai-worker.js</code>. A Cloudflare Worker (<code>cloud/ai-worker.js</code>) keeps one key server-side for everyone.</p>
         </div>
 
         <div class="setting-group">
@@ -240,7 +240,7 @@
   <div class="toast" id="toast" hidden></div>
 </div>
 
-<script type="module" src="js/app.js?v=8"></script>
+<script type="module" src="js/app.js?v=9"></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

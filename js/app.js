@@ -9,8 +9,18 @@ import * as store from './store.js';
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+const PARAMS = new URLSearchParams(location.search);
+const DEMO = PARAMS.get('demo') === '1';
 let settings = store.getSettings();
+
+// ?engine=cloud&provider=groq&model=... makes cloud mode bookmarkable.
+if (PARAMS.get('engine') === 'cloud' || PARAMS.get('engine') === 'local') {
+  const patch = { engineMode: PARAMS.get('engine') };
+  if (PARAMS.get('provider')) patch.cloudProvider = PARAMS.get('provider');
+  if (PARAMS.get('model')) patch.cloudModel = PARAMS.get('model');
+  if (PARAMS.get('base')) patch.cloudBaseUrl = PARAMS.get('base');
+  settings = store.saveSettings(patch);
+}
 const isCloud = () => settings.engineMode === 'cloud';
 let engine = DEMO
   ? new DemoEngine()
