@@ -157,6 +157,9 @@ function renderSidebar() {
 /* ── message rendering ──────────────────────────────────── */
 function toolCard(step) {
   const meta = step.meta || { label: step.name, icon: 'note' };
+  // Sessions saved before tool state existed still render as finished cards.
+  const state = step.state || (step.output || step.result ? 'ok' : 'run');
+  step = { ...step, state };
   const wrap = document.createElement('div');
   wrap.className = 'tool';
   wrap.dataset.id = step.id || '';
