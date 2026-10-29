@@ -142,12 +142,22 @@ export class Agent {
         if (toolName === 'note_save') noted = true;
         if (result.event === 'notes') this.h.onNote?.();
 
-        steps.push({ name: toolName, args: toolArgs, result: result.text, data: result.data, launch: result.launch });
+        const failed = String(result.text).startsWith('error');
+        steps.push({
+          name: toolName,
+          args: toolArgs,
+          result: result.text,
+          data: result.data,
+          launch: result.launch,
+          state: failed ? 'err' : 'ok',
+          meta,
+          output: result.text,
+        });
         this.h.onTool?.({
           id,
           name: toolName,
           args: toolArgs,
-          state: result.text.startsWith('error') ? 'err' : 'ok',
+          state: failed ? 'err' : 'ok',
           meta,
           output: result.text,
           launch: result.launch,
