@@ -94,6 +94,13 @@ you move the model off the device. The agent loop, tools, permissions and notes 
 | **OpenRouter** | yes | default `openai/gpt-oss-20b:free`. |
 | **Your own proxy** | server-side | deploy `cloud/ai-worker.js` to Cloudflare Workers, put the real key in `wrangler secret`, paste `https://<worker>.workers.dev/v1` as the Base URL. Best option if you want visitors to use your quota without ever seeing your key. |
 
+Bookmark cloud mode instead of clicking through: `?engine=cloud&provider=groq&model=openai/gpt-oss-20b`
+(also `provider=puter`, `provider=openrouter`, `provider=custom&base=https://your-worker.workers.dev/v1`).
+
+Puter may ask the visitor to sign in to Puter the first time (its free tier is user-pays), and in a
+headless browser that just waits, so the app times out after 60 s with a plain error instead of spinning.
+Groq and OpenRouter both send open CORS headers, so the browser calls them directly.
+
 Keys typed into Settings stay in this browser's localStorage and go only to that provider's
 endpoint. Cloud mode means your conversation leaves the device; local mode does not.
 
