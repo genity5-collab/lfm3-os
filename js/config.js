@@ -28,6 +28,38 @@ export const MODELS = [
   },
 ];
 
+// Where the model can run instead of being downloaded. All optional.
+export const CLOUD_PROVIDERS = {
+  puter: {
+    label: 'Puter - free, no key, no backend',
+    short: 'Puter',
+    base: '',
+    defaultModel: 'gpt-5.4-nano',
+    needsKey: false,
+  },
+  groq: {
+    label: 'Groq (OpenAI-compatible)',
+    short: 'Groq',
+    base: 'https://api.groq.com/openai/v1',
+    defaultModel: 'openai/gpt-oss-20b',
+    needsKey: true,
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    short: 'OpenRouter',
+    base: 'https://openrouter.ai/api/v1',
+    defaultModel: 'openai/gpt-oss-20b:free',
+    needsKey: true,
+  },
+  custom: {
+    label: 'Your own proxy (Cloudflare Worker etc)',
+    short: 'Custom',
+    base: '',
+    defaultModel: '',
+    needsKey: true,
+  },
+};
+
 export const DEFAULT_SETTINGS = {
   modelId: 'lfm3-1.7b',
   temperature: 0.3,
@@ -38,6 +70,12 @@ export const DEFAULT_SETTINGS = {
   tavilyKey: '',
   // What the agent is allowed to do on this device. Anything not granted is refused
   // by the tool layer, not just discouraged in the prompt.
+  // local = LFM3 in this tab (one download). cloud = a hosted model, nothing to download.
+  engineMode: 'local',
+  cloudProvider: 'puter',
+  cloudModel: '',
+  cloudBaseUrl: '',
+  cloudKey: '',
   perms: {
     notesRead: true,
     notesWrite: true,

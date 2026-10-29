@@ -82,6 +82,24 @@ If every tier fails the agent is told the search failed, and it says so instead 
 
 ---
 
+## Cloud mode (no download)
+
+Not everyone wants a 1.1 GB download, and phones struggle with WebGPU. Settings → Engine lets
+you move the model off the device. The agent loop, tools, permissions and notes are identical.
+
+| Provider | Key needed | Notes |
+|---|---|---|
+| **Puter** | no | `js.puter.com/v2`, hundreds of models, user-pays model. The zero-setup default. |
+| **Groq** | yes | fast and free-tier friendly. Default model `openai/gpt-oss-20b`. |
+| **OpenRouter** | yes | default `openai/gpt-oss-20b:free`. |
+| **Your own proxy** | server-side | deploy `cloud/ai-worker.js` to Cloudflare Workers, put the real key in `wrangler secret`, paste `https://<worker>.workers.dev/v1` as the Base URL. Best option if you want visitors to use your quota without ever seeing your key. |
+
+Keys typed into Settings stay in this browser's localStorage and go only to that provider's
+endpoint. Cloud mode means your conversation leaves the device; local mode does not.
+
+``cloud/ai-worker.js`` also supports Cloudflare Workers AI directly (`[ai] binding = "AI"`,
+`PROVIDER = "workers-ai"`), which has a free daily allocation and keeps everything on Cloudflare.
+
 ## Permissions
 
 The agent can only do what you allow, and the check lives in the tool layer — not just in the prompt.
@@ -136,6 +154,7 @@ css/style.css         theme and layout
 js/config.js          model registry, system prompt, defaults
 js/model.js           Transformers.js engine: load, stream, stop
 js/agent.js           the loop, JSON extraction, note guard
+js/cloud.js           cloud engine: Puter, any OpenAI-compatible endpoint, SSE streaming
 js/tools.js           search, read, notes, code sandbox, deep links, messaging, clock
 js/store.js           sessions, settings, notes persistence
 js/app.js             UI controller

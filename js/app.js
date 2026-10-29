@@ -1,21 +1,34 @@
 // UI controller: sessions, streaming, tool cards, notes, settings, loader.
-import { MODELS, STORAGE } from './config.js';
+import { MODELS, STORAGE, CLOUD_PROVIDERS } from './config.js';
 import { Engine, describeDevice } from './model.js';
 import { Agent } from './agent.js';
 import { DemoEngine } from './demo.js';
+import { CloudEngine } from './cloud.js';
 import * as store from './store.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const DEMO = new URLSearchParams(location.search).get('demo') === '1';
-const engine = DEMO ? new DemoEngine() : new Engine();
 let settings = store.getSettings();
+const isCloud = () => settings.engineMode === 'cloud';
+let engine = DEMO
+  ? new DemoEngine()
+  : isCloud()
+  ? new CloudEngine(() => settings)
+  : new Engine();
 let sessions = store.getSessions();
 let activeId = store.getActiveId();
 let running = false;
 let pendingPrompt = null;
 let currentAgent = null;
+
+function rebuildEngine() {
+  if (DEMO) return;
+  engine = isCloud() ? new CloudEngine(() => settings) : new Engine();
+  currentAgent = null; // fresh Agent is built per turn in send()
+  paintEngine(engine.ready ? 'ready' : 'idle');
+}
 
 /* ── tiny markdown renderer ─────────────────────────────── */
 const escapeHtml = (s) =>
@@ -258,6 +271,8 @@ function paintEngine(state) {
   name.textContent = engine.config?.label || MODELS.find((m) => m.id === settings.modelId)?.label || 'no model';
   sub.textContent = DEMO
     ? 'demo loop'
+    : isCloud()
+    ? 'cloud'
     : state === 'ready'
     ? 'ready'
     : state === 'busy'
@@ -265,10 +280,16 @@ function paintEngine(state) {
     : 'not loaded';
   $('#footInfo').textContent = DEMO
     ? 'Demo loop · scripted model output, real tools'
+    : isCloud()
+    ? `${engine.config.label} · hosted, nothing downloaded`
     : engine.ready
     ? `${engine.config.label} · local${navigator.gpu ? ' · WebGPU' : ' · WASM'}`
     : 'Local inference · model not loaded';
-  $('#emptyNote').textContent = engine.ready
+  $('#emptyNote').textContent = DEMO
+    ? 'Demo mode. The model is scripted, every tool is real.'
+    : isCloud()
+    ? 'Cloud mode. Type anything, no download needed.'
+    : engine.ready
     ? 'Model ready. It runs here, in this tab.'
     : 'Load the model to begin. One download, then it works offline.';
 }
@@ -358,7 +379,7 @@ async function send(text) {
   text = (text || '').trim();
   if (!text || running) return;
 
-  if (!engine.ready && !DEMO) {
+  if (!engine.ready && !DEMO && !isCloud()) {
     pendingPrompt = text;
     openLoader();
     toast('Load the model first. It downloads once, then runs offline.');
@@ -524,6 +545,17 @@ function closeSidebar() {
 
 /* ── settings binding ───────────────────────────────────── */
 function syncSettings() {
+  const providerSelect = $('#setCloudProvider');
+  if (providerSelect && !providerSelect.options.length) {
+    providerSelect.innerHTML = Object.entries(CLOUD_PROVIDERS)
+      .map(([id, p]) => `<option value="${id}">${escapeHtml(p.label)}</option>`)
+      .join('');
+  }
+  $('#setEngineMode').value = settings.engineMode || 'local';
+  $('#setCloudProvider').value = settings.cloudProvider || 'puter';
+  $('#setCloudModel').value = settings.cloudModel || '';
+  $('#setCloudBase').value = settings.cloudBaseUrl || '';
+  $('#setCloudKey').value = settings.cloudKey || '';
   $('#permNotesRead').checked = !!settings.perms.notesRead;
   $('#permNotesWrite').checked = !!settings.perms.notesWrite;
   $('#permAppsOpen').checked = !!settings.perms.appsOpen;
@@ -556,6 +588,34 @@ function bindSettings() {
     });
   });
 
+  $('#setEngineMode').addEventListener('change', (e) => {
+    settings = store.saveSettings({ engineMode: e.target.value });
+    rebuildEngine();
+    toast(e.target.value === 'cloud' ? 'Cloud mode: nothing to download' : 'Local mode: LFM3 in this tab');
+  });
+  $('#setCloudProvider').addEventListener('change', (e) => {
+    const preset = CLOUD_PROVIDERS[e.target.value] || {};
+    settings = store.saveSettings({
+      cloudProvider: e.target.value,
+      cloudModel: '',
+      cloudBaseUrl: preset.base || '',
+    });
+    syncSettings();
+    rebuildEngine();
+  });
+  $('#setCloudModel').addEventListener('change', (e) => {
+    settings = store.saveSettings({ cloudModel: e.target.value.trim() });
+    rebuildEngine();
+  });
+  $('#setCloudBase').addEventListener('change', (e) => {
+    settings = store.saveSettings({ cloudBaseUrl: e.target.value.trim() });
+    rebuildEngine();
+  });
+  $('#setCloudKey').addEventListener('change', (e) => {
+    settings = store.saveSettings({ cloudKey: e.target.value.trim() });
+    toast('Cloud key saved on this device');
+    rebuildEngine();
+  });
   $('#setTemp').addEventListener('input', (e) => {
     settings = store.saveSettings({ temperature: parseFloat(e.target.value) });
     $('#setTempVal').textContent = settings.temperature.toFixed(2);
@@ -639,7 +699,13 @@ function bind() {
   $('#btnTools').addEventListener('click', () => openPanel('notes'));
   $('#btnPanelClose').addEventListener('click', closePanel);
   $('#btnLoad').addEventListener('click', openLoader);
-  $('#modelChip').addEventListener('click', openLoader);
+  $('#modelChip').addEventListener('click', () => {
+    if (isCloud()) {
+      openPanel('settings');
+      return;
+    }
+    openLoader();
+  });
   $('#btnLoaderClose').addEventListener('click', () => ($('#loaderOverlay').hidden = true));
   $('#btnDownload').addEventListener('click', loadModel);
 
